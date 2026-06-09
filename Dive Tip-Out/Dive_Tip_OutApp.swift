@@ -9,9 +9,18 @@ import SwiftUI
 
 @main
 struct Dive_Tip_OutApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var viewModel = TipOutViewModel()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(viewModel)
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .active {
+                        viewModel.resetIfNeededForNewDay()
+                    }
+                }
         }
     }
 }
