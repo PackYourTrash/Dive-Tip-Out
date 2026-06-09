@@ -43,6 +43,39 @@ struct Dive_Tip_OutTests {
         #expect(result.overage == decimal("3"))
     }
 
+    @Test func foodRunnerDefaultsOnWhenNoManualChoiceWasSaved() async throws {
+        let data = Data("""
+        {
+            "dateKey": "2026-06-09",
+            "totalTipsText": "",
+            "bartenders": [],
+            "barbacks": [],
+            "hasFoodRunner": false
+        }
+        """.utf8)
+
+        let storedNight = try JSONDecoder().decode(StoredNight.self, from: data)
+
+        #expect(storedNight.hasFoodRunner == true)
+        #expect(storedNight.foodRunnerWasManuallySet == false)
+    }
+
+    @Test func manualFoodRunnerOffChoiceStaysOff() async throws {
+        let storedNight = StoredNight(
+            dateKey: "2026-06-09",
+            totalTipsText: "",
+            bartenders: [],
+            barbacks: [],
+            hasFoodRunner: false,
+            foodRunnerWasManuallySet: true
+        )
+        let data = try JSONEncoder().encode(storedNight)
+        let decodedNight = try JSONDecoder().decode(StoredNight.self, from: data)
+
+        #expect(decodedNight.hasFoodRunner == false)
+        #expect(decodedNight.foodRunnerWasManuallySet == true)
+    }
+
 }
 
 private func decimal(_ string: String) -> Decimal {

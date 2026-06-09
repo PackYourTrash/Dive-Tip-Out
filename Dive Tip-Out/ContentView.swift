@@ -273,7 +273,12 @@ struct FoodRunnersSection: View {
             SectionTitle("Food Runner")
 
             VStack(alignment: .leading, spacing: 12) {
-                Toggle(isOn: $viewModel.hasFoodRunner) {
+                Toggle(
+                    isOn: Binding(
+                        get: { viewModel.hasFoodRunner },
+                        set: { viewModel.setFoodRunnerOption($0) }
+                    )
+                ) {
                     Label("Food runner worked", systemImage: "figure.run")
                         .font(.headline)
                         .foregroundStyle(.white)
@@ -704,19 +709,22 @@ struct StoredNight: Codable {
     var bartenders: [CrewMember]
     var barbacks: [CrewMember]
     var hasFoodRunner: Bool
+    var foodRunnerWasManuallySet: Bool
 
     init(
         dateKey: String,
         totalTipsText: String,
         bartenders: [CrewMember],
         barbacks: [CrewMember],
-        hasFoodRunner: Bool
+        hasFoodRunner: Bool,
+        foodRunnerWasManuallySet: Bool
     ) {
         self.dateKey = dateKey
         self.totalTipsText = totalTipsText
         self.bartenders = bartenders
         self.barbacks = barbacks
         self.hasFoodRunner = hasFoodRunner
+        self.foodRunnerWasManuallySet = foodRunnerWasManuallySet
     }
 
     init(from decoder: Decoder) throws {
@@ -726,12 +734,9 @@ struct StoredNight: Codable {
         bartenders = try container.decode([CrewMember].self, forKey: .bartenders)
         barbacks = try container.decode([CrewMember].self, forKey: .barbacks)
 
-        if let hasFoodRunner = try container.decodeIfPresent(Bool.self, forKey: .hasFoodRunner) {
-            self.hasFoodRunner = hasFoodRunner
-        } else {
-            let legacyRunners = try container.decodeIfPresent([LegacyFoodRunner].self, forKey: .foodRunners) ?? []
-            hasFoodRunner = !legacyRunners.isEmpty
-        }
+        let storedFoodRunnerChoice = try container.decodeIfPresent(Bool.self, forKey: .hasFoodRunner) ?? true
+        foodRunnerWasManuallySet = try container.decodeIfPresent(Bool.self, forKey: .foodRunnerWasManuallySet) ?? false
+        hasFoodRunner = foodRunnerWasManuallySet ? storedFoodRunnerChoice : true
     }
 
     func encode(to encoder: Encoder) throws {
@@ -741,6 +746,7 @@ struct StoredNight: Codable {
         try container.encode(bartenders, forKey: .bartenders)
         try container.encode(barbacks, forKey: .barbacks)
         try container.encode(hasFoodRunner, forKey: .hasFoodRunner)
+        try container.encode(foodRunnerWasManuallySet, forKey: .foodRunnerWasManuallySet)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -749,12 +755,7 @@ struct StoredNight: Codable {
         case bartenders
         case barbacks
         case hasFoodRunner
-        case foodRunners
-    }
-
-    private struct LegacyFoodRunner: Codable {
-        var id: UUID?
-        var name: String?
+        case foodRunnerWasManuallySet
     }
 }
 
@@ -771,7 +772,11 @@ final class TipOutViewModel: ObservableObject {
         didSet { saveIfReady() }
     }
 
-    @Published var hasFoodRunner = false {
+    @Published var hasFoodRunner = true {
+        didSet { saveIfReady() }
+    }
+
+    @Published private var foodRunnerWasManuallySet = false {
         didSet { saveIfReady() }
     }
 
@@ -864,6 +869,11 @@ final class TipOutViewModel: ObservableObject {
         barbacks.remove(at: index)
     }
 
+    func setFoodRunnerOption(_ isOn: Bool) {
+        foodRunnerWasManuallySet = true
+        hasFoodRunner = isOn
+    }
+
     func resetAllEntries() {
         clearEntries(for: Date())
     }
@@ -926,7 +936,8 @@ final class TipOutViewModel: ObservableObject {
         totalTipsText = ""
         bartenders = []
         barbacks = []
-        hasFoodRunner = false
+        hasFoodRunner = true
+        foodRunnerWasManuallySet = false
         isRestoring = false
         save()
     }
@@ -944,6 +955,7 @@ final class TipOutViewModel: ObservableObject {
         bartenders = storedNight.bartenders
         barbacks = storedNight.barbacks
         hasFoodRunner = storedNight.hasFoodRunner
+        foodRunnerWasManuallySet = storedNight.foodRunnerWasManuallySet
         isRestoring = false
     }
 
@@ -958,7 +970,8 @@ final class TipOutViewModel: ObservableObject {
             totalTipsText: totalTipsText,
             bartenders: bartenders,
             barbacks: barbacks,
-            hasFoodRunner: hasFoodRunner
+            hasFoodRunner: hasFoodRunner,
+            foodRunnerWasManuallySet: foodRunnerWasManuallySet
         )
 
         guard let data = try? JSONEncoder().encode(storedNight) else { return }
