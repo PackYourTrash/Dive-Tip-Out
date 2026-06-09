@@ -70,7 +70,7 @@ struct ContentView: View {
                 viewModel.resetAllEntries()
             }
         } message: {
-            Text("This clears the total tips, bartenders, barbacks, and food runners.")
+            Text("This clears the total tips, bartenders, barbacks, and food runner option.")
         }
     }
 }
@@ -270,40 +270,24 @@ struct FoodRunnersSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionTitle("Food Runners")
+            SectionTitle("Food Runner")
 
-            ForEach(viewModel.foodRunners.indices, id: \.self) { index in
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Food Runner \(index + 1)")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-
-                        Spacer()
-
-                        Button {
-                            viewModel.removeFoodRunner(at: index)
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.88))
-                                .frame(width: 36, height: 36)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    FormTextField(
-                        title: "Name",
-                        placeholder: "Enter Food Runner \(index + 1)'s name",
-                        text: $viewModel.foodRunners[index].name
-                    )
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: $viewModel.hasFoodRunner) {
+                    Label("Food runner worked", systemImage: "figure.run")
+                        .font(.headline)
+                        .foregroundStyle(.white)
                 }
-                .glassCard()
-            }
+                .toggleStyle(.switch)
+                .tint(Color(red: 0.20, green: 0.72, blue: 0.86))
 
-            AddButton(title: "Add Food Runner", systemImage: "figure.run") {
-                viewModel.addFoodRunner()
+                if viewModel.hasFoodRunner {
+                    Text("Food runner tip-out will calculate from bartender food sales.")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.78))
+                }
             }
+            .glassCard()
         }
     }
 }
@@ -714,22 +698,64 @@ struct CrewMember: Identifiable, Codable, Equatable {
     }
 }
 
-struct FoodRunner: Identifiable, Codable, Equatable {
-    var id = UUID()
-    var name = ""
-
-    func displayName(defaultName: String) -> String {
-        let trimmedName = name.trimmed
-        return trimmedName.isEmpty ? defaultName : trimmedName
-    }
-}
-
 struct StoredNight: Codable {
     var dateKey: String
     var totalTipsText: String
     var bartenders: [CrewMember]
     var barbacks: [CrewMember]
-    var foodRunners: [FoodRunner]
+    var hasFoodRunner: Bool
+
+    init(
+        dateKey: String,
+        totalTipsText: String,
+        bartenders: [CrewMember],
+        barbacks: [CrewMember],
+        hasFoodRunner: Bool
+    ) {
+        self.dateKey = dateKey
+        self.totalTipsText = totalTipsText
+        self.bartenders = bartenders
+        self.barbacks = barbacks
+        self.hasFoodRunner = hasFoodRunner
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        dateKey = try container.decode(String.self, forKey: .dateKey)
+        totalTipsText = try container.decode(String.self, forKey: .totalTipsText)
+        bartenders = try container.decode([CrewMember].self, forKey: .bartenders)
+        barbacks = try container.decode([CrewMember].self, forKey: .barbacks)
+
+        if let hasFoodRunner = try container.decodeIfPresent(Bool.self, forKey: .hasFoodRunner) {
+            self.hasFoodRunner = hasFoodRunner
+        } else {
+            let legacyRunners = try container.decodeIfPresent([LegacyFoodRunner].self, forKey: .foodRunners) ?? []
+            hasFoodRunner = !legacyRunners.isEmpty
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(dateKey, forKey: .dateKey)
+        try container.encode(totalTipsText, forKey: .totalTipsText)
+        try container.encode(bartenders, forKey: .bartenders)
+        try container.encode(barbacks, forKey: .barbacks)
+        try container.encode(hasFoodRunner, forKey: .hasFoodRunner)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case dateKey
+        case totalTipsText
+        case bartenders
+        case barbacks
+        case hasFoodRunner
+        case foodRunners
+    }
+
+    private struct LegacyFoodRunner: Codable {
+        var id: UUID?
+        var name: String?
+    }
 }
 
 final class TipOutViewModel: ObservableObject {
@@ -745,7 +771,7 @@ final class TipOutViewModel: ObservableObject {
         didSet { saveIfReady() }
     }
 
-    @Published var foodRunners: [FoodRunner] = [] {
+    @Published var hasFoodRunner = false {
         didSet { saveIfReady() }
     }
 
@@ -789,7 +815,7 @@ final class TipOutViewModel: ObservableObject {
 
         let runnerTipOut = TipCalculator.foodRunnerTipOut(
             combinedFoodSales: bartenders.reduce(Decimal(0)) { $0 + $1.foodSales },
-            hasFoodRunners: !foodRunners.isEmpty
+            hasFoodRunner: hasFoodRunner
         )
 
         if totalTips - runnerTipOut < Decimal(0) {
@@ -816,7 +842,7 @@ final class TipOutViewModel: ObservableObject {
             totalTips: totalTips,
             bartenders: bartenders,
             barbacks: barbacks,
-            foodRunnerCount: foodRunners.count
+            hasFoodRunner: hasFoodRunner
         )
     }
 
@@ -836,15 +862,6 @@ final class TipOutViewModel: ObservableObject {
     func removeBarback(at index: Int) {
         guard barbacks.indices.contains(index) else { return }
         barbacks.remove(at: index)
-    }
-
-    func addFoodRunner() {
-        foodRunners.append(FoodRunner())
-    }
-
-    func removeFoodRunner(at index: Int) {
-        guard foodRunners.indices.contains(index) else { return }
-        foodRunners.remove(at: index)
     }
 
     func resetAllEntries() {
@@ -909,7 +926,7 @@ final class TipOutViewModel: ObservableObject {
         totalTipsText = ""
         bartenders = []
         barbacks = []
-        foodRunners = []
+        hasFoodRunner = false
         isRestoring = false
         save()
     }
@@ -926,7 +943,7 @@ final class TipOutViewModel: ObservableObject {
         totalTipsText = storedNight.totalTipsText
         bartenders = storedNight.bartenders
         barbacks = storedNight.barbacks
-        foodRunners = storedNight.foodRunners
+        hasFoodRunner = storedNight.hasFoodRunner
         isRestoring = false
     }
 
@@ -941,7 +958,7 @@ final class TipOutViewModel: ObservableObject {
             totalTipsText: totalTipsText,
             bartenders: bartenders,
             barbacks: barbacks,
-            foodRunners: foodRunners
+            hasFoodRunner: hasFoodRunner
         )
 
         guard let data = try? JSONEncoder().encode(storedNight) else { return }
@@ -999,12 +1016,12 @@ struct TipCalculator {
         totalTips: Decimal,
         bartenders: [BartenderInput],
         barbacks: [BarbackInput],
-        foodRunnerCount: Int
+        hasFoodRunner: Bool
     ) -> Result {
         let combinedFoodSales = bartenders.reduce(Decimal(0)) { $0 + $1.foodSales }
         let foodRunnerTipOut = foodRunnerTipOut(
             combinedFoodSales: combinedFoodSales,
-            hasFoodRunners: foodRunnerCount > 0
+            hasFoodRunner: hasFoodRunner
         )
         let truePooledTips = totalTips - foodRunnerTipOut
         let barbackPool = barbacks.isEmpty ? Decimal(0) : roundHalfUpWhole(truePooledTips * (Decimal(15) / Decimal(100)))
@@ -1041,7 +1058,7 @@ struct TipCalculator {
             totalTips: totalTips,
             combinedFoodSales: combinedFoodSales,
             foodRunnerTipOut: foodRunnerTipOut,
-            hasFoodRunnerTipOut: foodRunnerCount > 0,
+            hasFoodRunnerTipOut: hasFoodRunner,
             truePooledTips: truePooledTips,
             bartenderPool: bartenderPool,
             bartenderHourlyRate: bartenderHourlyRate,
@@ -1055,8 +1072,8 @@ struct TipCalculator {
         )
     }
 
-    static func foodRunnerTipOut(combinedFoodSales: Decimal, hasFoodRunners: Bool) -> Decimal {
-        guard hasFoodRunners else { return Decimal(0) }
+    static func foodRunnerTipOut(combinedFoodSales: Decimal, hasFoodRunner: Bool) -> Decimal {
+        guard hasFoodRunner else { return Decimal(0) }
         return roundHalfUpWhole(combinedFoodSales * (Decimal(4) / Decimal(100)))
     }
 

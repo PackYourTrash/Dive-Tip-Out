@@ -26,7 +26,7 @@ struct Dive_Tip_OutTests {
             totalTips: decimal("1000"),
             bartenders: bartenders,
             barbacks: barbacks,
-            foodRunnerCount: 1
+            hasFoodRunner: true
         )
 
         #expect(result.combinedFoodSales == decimal("780"))
