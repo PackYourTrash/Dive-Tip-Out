@@ -16,7 +16,7 @@ struct Dive_Tip_OutApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(viewModel)
-                .onChange(of: scenePhase) { _, newPhase in
+                .onChange(of: scenePhase) { newPhase in
                     if newPhase == .active {
                         viewModel.resetIfNeededForNewDay()
                     }
