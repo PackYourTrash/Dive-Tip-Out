@@ -1047,7 +1047,7 @@ struct TipCalculator {
                 id: bartender.id,
                 name: bartender.name,
                 hours: bartender.hours,
-                takeHome: roundDownWhole(bartender.hours * bartenderHourlyRate)
+                takeHome: roundPayoutWhole(bartender.hours * bartenderHourlyRate)
             )
         }
 
@@ -1058,7 +1058,7 @@ struct TipCalculator {
                 id: barback.id,
                 name: barback.name,
                 hours: barback.hours,
-                takeHome: roundDownWhole(barback.hours * barbackHourlyRate)
+                takeHome: roundPayoutWhole(barback.hours * barbackHourlyRate)
             )
         }
 
@@ -1096,6 +1096,16 @@ struct TipCalculator {
 
     static func roundDownWhole(_ value: Decimal) -> Decimal {
         round(value, scale: 0, mode: .down)
+    }
+
+    static func roundPayoutWhole(_ value: Decimal) -> Decimal {
+        let valueRoundedToCents = round(value, scale: 2, mode: .plain)
+        let wholeDollars = roundDownWhole(valueRoundedToCents)
+        let cents = valueRoundedToCents - wholeDollars
+
+        return cents > Decimal(50) / Decimal(100)
+            ? wholeDollars + Decimal(1)
+            : wholeDollars
     }
 
     private static func round(_ value: Decimal, scale: Int16, mode: NSDecimalNumber.RoundingMode) -> Decimal {

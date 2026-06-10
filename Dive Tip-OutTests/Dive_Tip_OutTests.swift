@@ -36,11 +36,11 @@ struct Dive_Tip_OutTests {
         #expect(result.bartenderPool == decimal("824"))
         #expect(AppFormat.rate(result.bartenderHourlyRate) == "$32.3137/hr")
         #expect(AppFormat.rate(result.barbackHourlyRate) == "$7.2500/hr")
-        #expect(result.bartenderPayouts.map(\.takeHome) == [decimal("242"), decimal("274"), decimal("306")])
-        #expect(result.barbackPayouts.map(\.takeHome) == [decimal("76"), decimal("68")])
-        #expect(result.bartenderRoundingOverage == decimal("2"))
-        #expect(result.barbackRoundingOverage == decimal("1"))
-        #expect(result.overage == decimal("3"))
+        #expect(result.bartenderPayouts.map(\.takeHome) == [decimal("242"), decimal("275"), decimal("307")])
+        #expect(result.barbackPayouts.map(\.takeHome) == [decimal("76"), decimal("69")])
+        #expect(result.bartenderRoundingOverage == decimal("0"))
+        #expect(result.barbackRoundingOverage == decimal("0"))
+        #expect(result.overage == decimal("0"))
     }
 
     @Test func foodRunnerDefaultsOnWhenNoManualChoiceWasSaved() async throws {
