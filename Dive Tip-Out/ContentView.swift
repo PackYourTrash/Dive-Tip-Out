@@ -24,10 +24,7 @@ struct ContentView: View {
                     Spacer(minLength: 36)
 
                     VStack(spacing: 18) {
-                        Image(systemName: "water.waves")
-                            .font(.system(size: 52, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .shadow(color: .blue.opacity(0.28), radius: 10, y: 6)
+                        AnimatedWaveIcon()
 
                         VStack(spacing: 8) {
                             Text("Dive Tip-Out")
@@ -57,7 +54,7 @@ struct ContentView: View {
                         .foregroundStyle(.white.opacity(0.76))
                         .padding(.top, 4)
                     }
-                    .glassCard()
+                    .homeFrostedCard()
                     .padding(.horizontal, 24)
 
                     Spacer(minLength: 56)
@@ -891,6 +888,45 @@ struct OceanBackground: View {
     }
 }
 
+struct AnimatedWaveIcon: View {
+    @State private var crestIsHigh = false
+    @State private var swellIsWide = false
+
+    var body: some View {
+        ZStack {
+            Image(systemName: "water.waves")
+                .font(.system(size: 62, weight: .semibold))
+                .foregroundStyle(.white.opacity(swellIsWide ? 0.18 : 0.10))
+                .blur(radius: 9)
+                .scaleEffect(swellIsWide ? 1.14 : 0.94)
+
+            Image(systemName: "water.waves")
+                .font(.system(size: 54, weight: .semibold))
+                .foregroundStyle(.white)
+                .rotationEffect(.degrees(crestIsHigh ? 2.5 : -2.5))
+                .offset(x: crestIsHigh ? 3 : -3, y: crestIsHigh ? -3 : 3)
+                .shadow(color: AppColor.diveBlue.opacity(0.36), radius: 12, y: 7)
+
+            Image(systemName: "water.waves")
+                .font(.system(size: 46, weight: .semibold))
+                .foregroundStyle(AppColor.diveBlue.opacity(0.58))
+                .offset(x: crestIsHigh ? 10 : -10, y: crestIsHigh ? 4 : -2)
+                .opacity(swellIsWide ? 0.56 : 0.82)
+                .blendMode(.screen)
+        }
+        .frame(width: 92, height: 72)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.45).repeatForever(autoreverses: true)) {
+                crestIsHigh = true
+            }
+
+            withAnimation(.easeInOut(duration: 2.35).repeatForever(autoreverses: true)) {
+                swellIsWide = true
+            }
+        }
+    }
+}
+
 enum AppColor {
     static let diveBlue = Color(red: 0.20, green: 0.72, blue: 0.86)
 }
@@ -945,6 +981,33 @@ struct SecondaryGlassButtonStyle: ButtonStyle {
 }
 
 extension View {
+    func homeFrostedCard(padding: CGFloat = 18) -> some View {
+        self
+            .padding(padding)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.white.opacity(0.16))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(.white.opacity(0.46), lineWidth: 1)
+            )
+            .overlay(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(.white.opacity(0.32), lineWidth: 1)
+                    .blur(radius: 1.5)
+                    .mask(
+                        LinearGradient(
+                            colors: [.white, .clear],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .shadow(color: .black.opacity(0.16), radius: 28, y: 18)
+    }
+
     func glassCard(padding: CGFloat = 16) -> some View {
         self
             .padding(padding)
