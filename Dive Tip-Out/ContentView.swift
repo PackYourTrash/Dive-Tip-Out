@@ -630,17 +630,6 @@ struct WilfredQuotePopup: View {
 
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 10) {
-                    Text("QOTD")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppColor.diveBlue)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.black.opacity(0.44), in: Capsule(style: .continuous))
-
-                    Text("Wilfred")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.white)
-
                     Spacer()
 
                     Button(action: onNext) {
@@ -1114,7 +1103,7 @@ struct CrewMember: Identifiable, Codable, Equatable {
     }
 
     private static func defaultEndTime() -> Date {
-        Calendar.current.date(bySettingHour: 23, minute: 0, second: 0, of: Date()) ?? Date()
+        Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: Date()) ?? Date()
     }
 }
 
