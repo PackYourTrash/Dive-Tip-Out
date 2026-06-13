@@ -18,16 +18,8 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                OceanBackground()
-
-                VStack {
-                    Spacer(minLength: 24)
-
-                    HomeHeroCard(showingResetConfirmation: $showingResetConfirmation)
-                        .padding(.horizontal, 14)
-
-                    Spacer(minLength: 28)
-                }
+                HomeHeroCard(showingResetConfirmation: $showingResetConfirmation)
+                    .ignoresSafeArea()
 
                 VStack {
                     HStack {
@@ -86,17 +78,14 @@ struct HomeHeroCard: View {
             let height = proxy.size.height
 
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.02, green: 0.32, blue: 0.52),
-                                Color(red: 0.01, green: 0.22, blue: 0.39)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.02, green: 0.32, blue: 0.52),
+                        Color(red: 0.01, green: 0.22, blue: 0.39)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
 
                 Circle()
                     .fill(
@@ -109,28 +98,44 @@ struct HomeHeroCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: width * 1.42, height: width * 1.42)
-                    .position(x: width * 0.52, y: height * 0.18)
-                    .shadow(color: .white.opacity(0.18), radius: 18, y: 8)
+                    .frame(width: width * 1.46, height: width * 1.46)
+                    .position(x: width * 0.56, y: max(78, height * 0.19))
+                    .shadow(color: .white.opacity(0.16), radius: 18, y: 8)
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.20),
+                                .clear
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: width * 1.6, height: width * 1.6)
+                    .position(x: width * 0.50, y: max(52, height * 0.12))
+                    .blur(radius: 18)
+                    .blendMode(.screen)
 
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .top) {
                         HomeWaveMark()
-                            .padding(.top, 54)
-                            .padding(.leading, 58)
+                            .padding(.top, max(58, height * 0.10))
+                            .padding(.leading, max(42, width * 0.18))
 
                         Spacer()
 
                         AnimatedDotGrid()
                             .frame(width: 78, height: 210)
-                            .padding(.top, 44)
-                            .padding(.trailing, 34)
+                            .padding(.top, max(54, height * 0.09))
+                            .padding(.trailing, max(22, width * 0.09))
                     }
-                    .frame(height: 156)
+                    .frame(height: max(166, height * 0.27))
 
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Dive\nTip-Out")
-                            .font(.system(size: 46, weight: .bold, design: .rounded))
+                            .font(.system(size: min(58, max(46, width * 0.13)), weight: .bold, design: .rounded))
                             .lineSpacing(-5)
                             .foregroundStyle(Color(red: 0.02, green: 0.06, blue: 0.08))
                             .fixedSize(horizontal: false, vertical: true)
@@ -139,8 +144,8 @@ struct HomeHeroCard: View {
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(Color(red: 0.08, green: 0.16, blue: 0.20).opacity(0.82))
                     }
-                    .padding(.leading, 58)
-                    .padding(.trailing, 34)
+                    .padding(.leading, max(42, width * 0.18))
+                    .padding(.trailing, 28)
 
                     Spacer(minLength: 0)
 
@@ -168,7 +173,7 @@ struct HomeHeroCard: View {
                         .frame(height: 62)
                     }
                     .buttonStyle(HomePrimaryButtonStyle())
-                    .padding(.horizontal, 54)
+                    .padding(.horizontal, max(38, width * 0.14))
                     .padding(.bottom, 28)
 
                     Button("Reset") {
@@ -176,21 +181,12 @@ struct HomeHeroCard: View {
                     }
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.86))
-                    .padding(.leading, 58)
-                    .padding(.bottom, 34)
+                    .padding(.leading, max(42, width * 0.18))
+                    .padding(.bottom, max(38, height * 0.07))
                 }
             }
             .frame(width: width, height: height)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .stroke(.white.opacity(0.42), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.22), radius: 26, y: 18)
         }
-        .frame(maxWidth: 380)
-        .frame(height: 560)
     }
 }
 
