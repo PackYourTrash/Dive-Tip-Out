@@ -20,44 +20,13 @@ struct ContentView: View {
             ZStack {
                 OceanBackground()
 
-                VStack(spacing: 28) {
-                    Spacer(minLength: 36)
+                VStack {
+                    Spacer(minLength: 24)
 
-                    VStack(spacing: 18) {
-                        AnimatedWaveIcon()
+                    HomeHeroCard(showingResetConfirmation: $showingResetConfirmation)
+                        .padding(.horizontal, 14)
 
-                        VStack(spacing: 8) {
-                            Text("Dive Tip-Out")
-                                .font(.largeTitle.weight(.bold))
-                                .foregroundStyle(.white)
-
-                            Text("Tonight's tip payout")
-                                .font(.headline)
-                                .foregroundStyle(.white.opacity(0.82))
-                        }
-
-                        NavigationLink {
-                            EntryView()
-                        } label: {
-                            Label("Begin Tip Payout", systemImage: "arrow.right.circle.fill")
-                                .font(.headline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                        }
-                        .buttonStyle(PrimaryGlassButtonStyle())
-                        .padding(.top, 10)
-
-                        Button("Reset") {
-                            showingResetConfirmation = true
-                        }
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.76))
-                        .padding(.top, 4)
-                    }
-                    .homeFrostedCard()
-                    .padding(.horizontal, 24)
-
-                    Spacer(minLength: 56)
+                    Spacer(minLength: 28)
                 }
 
                 VStack {
@@ -105,6 +74,123 @@ struct ContentView: View {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
             currentWilfredQuote = availableQuotes.randomElement() ?? WilfredQuote.all.randomElement()
         }
+    }
+}
+
+struct HomeHeroCard: View {
+    @Binding var showingResetConfirmation: Bool
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.02, green: 0.32, blue: 0.52),
+                                Color(red: 0.01, green: 0.22, blue: 0.39)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 1.0, green: 0.97, blue: 0.90),
+                                Color(red: 0.95, green: 0.93, blue: 0.85)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: width * 1.42, height: width * 1.42)
+                    .position(x: width * 0.52, y: height * 0.18)
+                    .shadow(color: .white.opacity(0.18), radius: 18, y: 8)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .top) {
+                        HomeWaveMark()
+                            .padding(.top, 54)
+                            .padding(.leading, 58)
+
+                        Spacer()
+
+                        AnimatedDotGrid()
+                            .frame(width: 78, height: 210)
+                            .padding(.top, 44)
+                            .padding(.trailing, 34)
+                    }
+                    .frame(height: 156)
+
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Dive\nTip-Out")
+                            .font(.system(size: 46, weight: .bold, design: .rounded))
+                            .lineSpacing(-5)
+                            .foregroundStyle(Color(red: 0.02, green: 0.06, blue: 0.08))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Text("Tonight's tip payout")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(Color(red: 0.08, green: 0.16, blue: 0.20).opacity(0.82))
+                    }
+                    .padding(.leading, 58)
+                    .padding(.trailing, 34)
+
+                    Spacer(minLength: 0)
+
+                    NavigationLink {
+                        EntryView()
+                    } label: {
+                        HStack(spacing: 14) {
+                            Text("Begin Tip Payout")
+                                .font(.headline.weight(.bold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+
+                            Spacer(minLength: 8)
+
+                            Image(systemName: "arrow.right")
+                                .font(.headline.weight(.bold))
+                                .frame(width: 38, height: 38)
+                                .overlay(
+                                    Circle()
+                                        .stroke(.white.opacity(0.68), lineWidth: 2)
+                                )
+                        }
+                        .padding(.leading, 24)
+                        .padding(.trailing, 10)
+                        .frame(height: 62)
+                    }
+                    .buttonStyle(HomePrimaryButtonStyle())
+                    .padding(.horizontal, 54)
+                    .padding(.bottom, 28)
+
+                    Button("Reset") {
+                        showingResetConfirmation = true
+                    }
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.86))
+                    .padding(.leading, 58)
+                    .padding(.bottom, 34)
+                }
+            }
+            .frame(width: width, height: height)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(.white.opacity(0.42), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.22), radius: 26, y: 18)
+        }
+        .frame(maxWidth: 380)
+        .frame(height: 560)
     }
 }
 
@@ -888,42 +974,60 @@ struct OceanBackground: View {
     }
 }
 
-struct AnimatedWaveIcon: View {
-    @State private var crestIsHigh = false
-    @State private var swellIsWide = false
+struct HomeWaveMark: View {
+    @State private var waveOffset = false
 
     var body: some View {
-        ZStack {
-            Image(systemName: "water.waves")
-                .font(.system(size: 62, weight: .semibold))
-                .foregroundStyle(.white.opacity(swellIsWide ? 0.18 : 0.10))
-                .blur(radius: 9)
-                .scaleEffect(swellIsWide ? 1.14 : 0.94)
-
-            Image(systemName: "water.waves")
-                .font(.system(size: 54, weight: .semibold))
-                .foregroundStyle(.white)
-                .rotationEffect(.degrees(crestIsHigh ? 2.5 : -2.5))
-                .offset(x: crestIsHigh ? 3 : -3, y: crestIsHigh ? -3 : 3)
-                .shadow(color: AppColor.diveBlue.opacity(0.36), radius: 12, y: 7)
-
-            Image(systemName: "water.waves")
-                .font(.system(size: 46, weight: .semibold))
-                .foregroundStyle(AppColor.diveBlue.opacity(0.58))
-                .offset(x: crestIsHigh ? 10 : -10, y: crestIsHigh ? 4 : -2)
-                .opacity(swellIsWide ? 0.56 : 0.82)
-                .blendMode(.screen)
+        VStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { index in
+                Image(systemName: "water.waves")
+                    .font(.system(size: 27, weight: .bold))
+                    .foregroundStyle(Color.black.opacity(0.78))
+                    .scaleEffect(x: 0.92, y: 0.42)
+                    .offset(x: waveOffset ? CGFloat(index * 2) : CGFloat(-index * 2))
+            }
         }
-        .frame(width: 92, height: 72)
+        .frame(width: 64, height: 42)
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.45).repeatForever(autoreverses: true)) {
-                crestIsHigh = true
-            }
-
-            withAnimation(.easeInOut(duration: 2.35).repeatForever(autoreverses: true)) {
-                swellIsWide = true
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                waveOffset = true
             }
         }
+    }
+}
+
+struct AnimatedDotGrid: View {
+    private let columns = 5
+    private let rows = 9
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+
+            VStack(spacing: 13) {
+                ForEach(0..<rows, id: \.self) { row in
+                    HStack(spacing: 13) {
+                        ForEach(0..<columns, id: \.self) { column in
+                            let wave = waveValue(row: row, column: column, time: time)
+
+                            Circle()
+                                .fill(Color.black.opacity(0.46 + (0.28 * wave)))
+                                .frame(
+                                    width: CGFloat(4.6 + (2.2 * wave)),
+                                    height: CGFloat(4.6 + (2.2 * wave))
+                                )
+                                .offset(y: CGFloat(-5 * wave))
+                        }
+                    }
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func waveValue(row: Int, column: Int, time: TimeInterval) -> Double {
+        let rawValue = sin((Double(row) * 0.82) + (Double(column) * 0.58) + (time * 2.6))
+        return (rawValue + 1) / 2
     }
 }
 
@@ -949,6 +1053,24 @@ struct WilfredButtonStyle: ButtonStyle {
             )
             .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
+    }
+}
+
+struct HomePrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.black.opacity(configuration.isPressed ? 0.82 : 0.72))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(.white.opacity(0.18), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.30), radius: 16, y: 10)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
     }
 }
 
@@ -981,33 +1103,6 @@ struct SecondaryGlassButtonStyle: ButtonStyle {
 }
 
 extension View {
-    func homeFrostedCard(padding: CGFloat = 18) -> some View {
-        self
-            .padding(padding)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.white.opacity(0.16))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(.white.opacity(0.46), lineWidth: 1)
-            )
-            .overlay(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(.white.opacity(0.32), lineWidth: 1)
-                    .blur(radius: 1.5)
-                    .mask(
-                        LinearGradient(
-                            colors: [.white, .clear],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            .shadow(color: .black.opacity(0.16), radius: 28, y: 18)
-    }
-
     func glassCard(padding: CGFloat = 16) -> some View {
         self
             .padding(padding)
