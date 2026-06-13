@@ -13,6 +13,7 @@ import UIKit
 struct ContentView: View {
     @EnvironmentObject private var viewModel: TipOutViewModel
     @State private var showingResetConfirmation = false
+    @State private var currentWilfredQuote: WilfredQuote?
 
     var body: some View {
         NavigationStack {
@@ -61,6 +62,34 @@ struct ContentView: View {
 
                     Spacer(minLength: 56)
                 }
+
+                VStack {
+                    HStack {
+                        Spacer()
+
+                        Button("wilfred") {
+                            showNewWilfredQuote()
+                        }
+                        .buttonStyle(WilfredButtonStyle())
+                    }
+
+                    Spacer()
+                }
+                .padding(.top, 14)
+                .padding(.trailing, 18)
+
+                if let currentWilfredQuote {
+                    WilfredQuotePopup(
+                        quote: currentWilfredQuote,
+                        onNext: showNewWilfredQuote,
+                        onDismiss: {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                self.currentWilfredQuote = nil
+                            }
+                        }
+                    )
+                    .zIndex(2)
+                }
             }
             .navigationBarHidden(true)
         }
@@ -71,6 +100,13 @@ struct ContentView: View {
             }
         } message: {
             Text("This clears the total tips, bartenders, barbacks, and food runner option.")
+        }
+    }
+
+    private func showNewWilfredQuote() {
+        let availableQuotes = WilfredQuote.all.filter { $0.id != currentWilfredQuote?.id }
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            currentWilfredQuote = availableQuotes.randomElement() ?? WilfredQuote.all.randomElement()
         }
     }
 }
@@ -149,7 +185,7 @@ struct ResultsView: View {
                             }
                         }
 
-                        Text("Overage: \(AppFormat.money(result.overage)) (\(AppFormat.money(result.bartenderRoundingOverage)) from bartender rounding + \(AppFormat.money(result.barbackRoundingOverage)) from barback rounding) - hand out as you choose.")
+                        Text(roundingSummary(for: result))
                             .font(.callout.weight(.semibold))
                             .foregroundStyle(.white)
                             .fixedSize(horizontal: false, vertical: true)
@@ -187,6 +223,80 @@ struct ResultsView: View {
                     dismiss()
                 }
             }
+        }
+    }
+
+    private func roundingSummary(for result: TipCalculator.Result) -> String {
+        var messages: [String] = []
+
+        if result.bartenderRoundingShortage > Decimal(0) {
+            messages.append(
+                shortageMessage(
+                    role: "Bartender",
+                    shortage: result.bartenderRoundingShortage,
+                    unresolvedShortage: result.bartenderUnresolvedRoundingShortage,
+                    adjustments: result.bartenderShortageAdjustments
+                )
+            )
+        }
+
+        if result.barbackRoundingShortage > Decimal(0) {
+            messages.append(
+                shortageMessage(
+                    role: "Barback",
+                    shortage: result.barbackRoundingShortage,
+                    unresolvedShortage: result.barbackUnresolvedRoundingShortage,
+                    adjustments: result.barbackShortageAdjustments
+                )
+            )
+        }
+
+        if result.overage > Decimal(0) {
+            messages.append("Overage: \(AppFormat.money(result.overage)) (\(AppFormat.money(result.bartenderRoundingOverage)) from bartender rounding + \(AppFormat.money(result.barbackRoundingOverage)) from barback rounding) - hand out as you choose.")
+        }
+
+        if messages.isEmpty {
+            return "Rounding is flush: payouts match their pools."
+        }
+
+        if result.unresolvedShortage == Decimal(0), result.overage == Decimal(0) {
+            messages.append("Final payouts are flush.")
+        }
+
+        return messages.joined(separator: " ")
+    }
+
+    private func shortageMessage(
+        role: String,
+        shortage: Decimal,
+        unresolvedShortage: Decimal,
+        adjustments: [TipCalculator.RoundingAdjustment]
+    ) -> String {
+        if adjustments.isEmpty {
+            return "\(role) shortage: \(AppFormat.money(shortage)); no rounded-up payout was available to pull from."
+        }
+
+        let adjustedNames = formattedNameList(adjustments.map(\.name))
+        let action = "rounding \(adjustedNames) down"
+
+        if unresolvedShortage > Decimal(0) {
+            return "\(role) shortage: \(AppFormat.money(shortage)) reduced by \(action); \(AppFormat.money(unresolvedShortage)) still short."
+        }
+
+        return "\(role) shortage: \(AppFormat.money(shortage)) covered by \(action)."
+    }
+
+    private func formattedNameList(_ names: [String]) -> String {
+        switch names.count {
+        case 0:
+            return ""
+        case 1:
+            return names[0]
+        case 2:
+            return "\(names[0]) and \(names[1])"
+        default:
+            let leadingNames = names.dropLast().joined(separator: ", ")
+            return "\(leadingNames), and \(names[names.count - 1])"
         }
     }
 }
@@ -367,16 +477,39 @@ struct StaffEntryCard: View {
 
 struct TimeSpanPicker: View {
     @Binding var member: CrewMember
+    @State private var expandedField: TimePickerField?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            DatePicker("Start", selection: $member.startTime, displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel)
-                .environment(\.locale, Locale(identifier: "en_US"))
+            TimePickerToggleRow(
+                title: "Start",
+                systemImage: "sunrise",
+                date: member.startTime,
+                isExpanded: expandedField == .start
+            ) {
+                toggleField(.start)
+            }
 
-            DatePicker("End", selection: $member.endTime, displayedComponents: .hourAndMinute)
-                .datePickerStyle(.wheel)
-                .environment(\.locale, Locale(identifier: "en_US"))
+            if expandedField == .start {
+                WheelTimePicker(date: $member.startTime, minuteInterval: 5)
+                    .timeWheelStyle()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            TimePickerToggleRow(
+                title: "End",
+                systemImage: "moon",
+                date: member.endTime,
+                isExpanded: expandedField == .end
+            ) {
+                toggleField(.end)
+            }
+
+            if expandedField == .end {
+                WheelTimePicker(date: $member.endTime, minuteInterval: 5)
+                    .timeWheelStyle()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
 
             if let hours = member.hoursValue {
                 Label("\(AppFormat.hours(hours)) hours", systemImage: "clock")
@@ -384,6 +517,192 @@ struct TimeSpanPicker: View {
                     .foregroundStyle(.white)
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: expandedField)
+    }
+
+    private func toggleField(_ field: TimePickerField) {
+        expandedField = expandedField == field ? nil : field
+    }
+}
+
+private enum TimePickerField: Equatable {
+    case start
+    case end
+}
+
+struct TimePickerToggleRow: View {
+    let title: String
+    let systemImage: String
+    let date: Date
+    let isExpanded: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 22)
+
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer(minLength: 12)
+
+                Text(AppFormat.time(date))
+                    .font(.headline.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+            }
+            .foregroundStyle(Color(red: 0.04, green: 0.18, blue: 0.26))
+            .padding(.horizontal, 12)
+            .frame(minHeight: 46)
+            .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct WheelTimePicker: UIViewRepresentable {
+    @Binding var date: Date
+    let minuteInterval: Int
+
+    func makeUIView(context: Context) -> UIDatePicker {
+        let picker = UIDatePicker()
+        picker.datePickerMode = .time
+        picker.preferredDatePickerStyle = .wheels
+        picker.minuteInterval = minuteInterval
+        picker.locale = Locale(identifier: "en_US")
+        picker.overrideUserInterfaceStyle = .light
+        picker.backgroundColor = .clear
+        picker.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.dateChanged(_:)),
+            for: .valueChanged
+        )
+        return picker
+    }
+
+    func updateUIView(_ picker: UIDatePicker, context: Context) {
+        context.coordinator.date = $date
+
+        if picker.minuteInterval != minuteInterval {
+            picker.minuteInterval = minuteInterval
+        }
+
+        if abs(picker.date.timeIntervalSince(date)) > 0.5 {
+            picker.setDate(date, animated: false)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(date: $date)
+    }
+
+    final class Coordinator: NSObject {
+        var date: Binding<Date>
+
+        init(date: Binding<Date>) {
+            self.date = date
+        }
+
+        @objc func dateChanged(_ sender: UIDatePicker) {
+            date.wrappedValue = sender.date
+        }
+    }
+}
+
+struct WilfredQuotePopup: View {
+    let quote: WilfredQuote
+    let onNext: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.30)
+                .ignoresSafeArea()
+                .onTapGesture(perform: onDismiss)
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 10) {
+                    Text("QOTD")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppColor.diveBlue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.44), in: Capsule(style: .continuous))
+
+                    Text("Wilfred")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white)
+
+                    Spacer()
+
+                    Button(action: onNext) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 34, height: 34)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AppColor.diveBlue)
+                    .accessibilityLabel("New quote")
+
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 34, height: 34)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.88))
+                    .accessibilityLabel("Close")
+                }
+
+                quoteText
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("\u{2014} \(quote.author)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.82))
+            }
+            .padding(18)
+            .frame(maxWidth: 340)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.black.opacity(0.42))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(.white.opacity(0.34), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.24), radius: 28, y: 18)
+            .padding(.horizontal, 24)
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+    }
+
+    private var quoteText: Text {
+        guard let range = quote.text.range(
+            of: quote.highlight,
+            options: [.caseInsensitive, .diacriticInsensitive]
+        ) else {
+            return Text("\u{201C}\(quote.text)\u{201D}")
+                .font(.title3)
+        }
+
+        let leadingText = String(quote.text[..<range.lowerBound])
+        let highlightedText = String(quote.text[range])
+        let trailingText = String(quote.text[range.upperBound...])
+        let leading = Text("\u{201C}\(leadingText)").font(.title3)
+        let highlighted = Text(highlightedText).font(.title3.weight(.bold))
+        let trailing = Text("\(trailingText)\u{201D}").font(.title3)
+        return leading + highlighted + trailing
     }
 }
 
@@ -583,6 +902,31 @@ struct OceanBackground: View {
     }
 }
 
+enum AppColor {
+    static let diveBlue = Color(red: 0.20, green: 0.72, blue: 0.86)
+}
+
+struct WilfredButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption.weight(.bold))
+            .foregroundStyle(AppColor.diveBlue)
+            .padding(.horizontal, 13)
+            .frame(height: 34)
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .background(
+                Capsule(style: .continuous)
+                    .fill(.black.opacity(configuration.isPressed ? 0.78 : 0.62))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(.white.opacity(0.24), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+    }
+}
+
 struct PrimaryGlassButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -621,6 +965,13 @@ extension View {
                     .stroke(.white.opacity(0.32), lineWidth: 1)
             )
     }
+
+    func timeWheelStyle() -> some View {
+        self
+            .frame(height: 150)
+            .clipped()
+            .background(.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
 }
 
 enum StaffRole {
@@ -640,6 +991,70 @@ enum StaffRole {
 enum ShiftInputMode: String, Codable, CaseIterable {
     case direct
     case timeSpan
+}
+
+struct WilfredQuote: Identifiable, Equatable {
+    let season: Int
+    let episode: Int
+    let text: String
+    let highlight: String
+    let author: String
+
+    var id: String {
+        "\(season)-\(episode)"
+    }
+
+    static let all: [WilfredQuote] = [
+        WilfredQuote(season: 1, episode: 1, text: "Sanity and happiness are an impossible combination.", highlight: "happiness", author: "Mark Twain"),
+        WilfredQuote(season: 1, episode: 2, text: "Trust thyself only, and another shall not betray thee.", highlight: "Trust", author: "Thomas Fuller"),
+        WilfredQuote(season: 1, episode: 3, text: "Fear has its uses but cowardice has none.", highlight: "Fear", author: "Mahatma Ghandi"),
+        WilfredQuote(season: 1, episode: 4, text: "Happiness can exist only in acceptance.", highlight: "acceptance", author: "George Orwell"),
+        WilfredQuote(season: 1, episode: 5, text: "Seek respect mainly from thyself, for it comes first from within.", highlight: "respect", author: "Steven H. Coogler"),
+        WilfredQuote(season: 1, episode: 6, text: "Conscience is the dog that can't bite, but never stops barking.", highlight: "Conscience", author: "Proverb"),
+        WilfredQuote(season: 1, episode: 7, text: "In general, pride is at the bottom of all great mistakes.", highlight: "pride", author: "Steven H. Coogler"),
+        WilfredQuote(season: 1, episode: 8, text: "Anger as soon as fed is dead -- tis starving makes it fat.", highlight: "Anger", author: "Emily Dickinson"),
+        WilfredQuote(season: 1, episode: 9, text: "Make no judgements where you have no compassion.", highlight: "compassion", author: "Anne McCaffrey"),
+        WilfredQuote(season: 1, episode: 10, text: "Isolation is a self-defeating dream.", highlight: "Isolation", author: "Carlos Salinas de Gortari"),
+        WilfredQuote(season: 1, episode: 11, text: "Doubt must be no more than vigilance, otherwise it can become dangerous.", highlight: "Doubt", author: "George C. Lichtenberg"),
+        WilfredQuote(season: 1, episode: 12, text: "Love is a willingness to sacrifice.", highlight: "sacrifice", author: "Michael Novak"),
+        WilfredQuote(season: 1, episode: 13, text: "The value of identity is that so often with it comes purpose.", highlight: "identity", author: "Richard R. Grant"),
+        WilfredQuote(season: 2, episode: 1, text: "Discontent is the first necessity of progress.", highlight: "progress", author: "Thomas Edison"),
+        WilfredQuote(season: 2, episode: 2, text: "Some of us think holding on makes us strong, but sometimes it is letting go.", highlight: "letting go", author: "Herman Hesse"),
+        WilfredQuote(season: 2, episode: 3, text: "Let not a man guard his dignity but let his dignity guard him.", highlight: "dignity", author: "Ralph Waldo Emerson"),
+        WilfredQuote(season: 2, episode: 4, text: "Guilt: the gift that keeps on giving.", highlight: "Guilt", author: "Erma Bombeck"),
+        WilfredQuote(season: 2, episode: 5, text: "Be here now.", highlight: "now", author: "Ram Dass"),
+        WilfredQuote(season: 2, episode: 6, text: "The master understands that the universe is forever out of control.", highlight: "control", author: "Lao Tzu"),
+        WilfredQuote(season: 2, episode: 7, text: "Our biggest problems arise from the avoidance of smaller ones.", highlight: "avoidance", author: "Jeremy Caulfield"),
+        WilfredQuote(season: 2, episode: 8, text: "The truth will set you free, but first it will make you miserable.", highlight: "truth", author: "James A. Garfield"),
+        WilfredQuote(season: 2, episode: 9, text: "The thing that lies at the foundation of positive change is service to a fellow human being.", highlight: "service", author: "Lee Iacocca"),
+        WilfredQuote(season: 2, episode: 10, text: "Honesty and transparency make you vulnerable. Be honest and transparent anyway.", highlight: "Honesty", author: "Mother Teresa"),
+        WilfredQuote(season: 2, episode: 11, text: "If you do not ask the right questions, you do not get the right answers.", highlight: "questions", author: "Edward Hodnett"),
+        WilfredQuote(season: 2, episode: 12, text: "Resentment is like taking poison and waiting for the other person to die.", highlight: "Resentment", author: "Malachy McCourt"),
+        WilfredQuote(season: 2, episode: 13, text: "If we knew each other's secrets, what comfort should we find.", highlight: "secrets", author: "John Churton Collins"),
+        WilfredQuote(season: 3, episode: 1, text: "The mistake is thinking that there can be an antidote to the uncertainty.", highlight: "uncertainty", author: "David Levithan"),
+        WilfredQuote(season: 3, episode: 2, text: "Cure sometimes, treat often, comfort always.", highlight: "comfort", author: "Hippocrates"),
+        WilfredQuote(season: 3, episode: 3, text: "Suspicion is a heavy armor and with its weight it impedes more than it protects.", highlight: "Suspicion", author: "Robert Burns"),
+        WilfredQuote(season: 3, episode: 4, text: "Sincerity, even if it speaks with a stutter, will sound eloquent when inspired.", highlight: "Sincerity", author: "Eiji Yoshikawa"),
+        WilfredQuote(season: 3, episode: 5, text: "I have little shame, no dignity - all in the name of a better cause.", highlight: "shame", author: "A.J. Jacobs"),
+        WilfredQuote(season: 3, episode: 6, text: "Truth may sometimes hurt, but delusion harms.", highlight: "delusion", author: "Vanna Bonta"),
+        WilfredQuote(season: 3, episode: 7, text: "Intuition is more important to discovery than logic.", highlight: "Intuition", author: "Henri Poincare"),
+        WilfredQuote(season: 3, episode: 8, text: "How weird was it to drive streets I knew so well. What a different perspective.", highlight: "perspective", author: "Suzanne Vega"),
+        WilfredQuote(season: 3, episode: 9, text: "There can be no progress without head-on confrontation.", highlight: "confrontation", author: "Christopher Hitchens"),
+        WilfredQuote(season: 3, episode: 10, text: "Sometimes it's necessary to go a long distance out of the way to come back a short distance correctly.", highlight: "distance", author: "Edward Albee"),
+        WilfredQuote(season: 3, episode: 11, text: "Stagnation is death. If you don't change, you die. It's that simple. It's that scary.", highlight: "Stagnation", author: "Leonard Sweet"),
+        WilfredQuote(season: 3, episode: 12, text: "In my opinion, actual heroism, like actual love, is a messy, painful, vulnerable business.", highlight: "heroism", author: "John Green"),
+        WilfredQuote(season: 3, episode: 13, text: "Maybe all one can do is hope to end up with the right regrets.", highlight: "regrets", author: "Arthur Miller"),
+        WilfredQuote(season: 4, episode: 1, text: "If you have behaved badly, repent, make what amends you can and address yourself to the task of behaving better next time.", highlight: "amends", author: "Aldous Huxley"),
+        WilfredQuote(season: 4, episode: 2, text: "Sooner or later everyone sits down to a banquet of consequences.", highlight: "consequences", author: "Robert Louis Stevenson"),
+        WilfredQuote(season: 4, episode: 3, text: "We are all in the same boat, in a stormy sea, and we owe each other a terrible loyalty.", highlight: "loyalty", author: "G.K. Chesterton"),
+        WilfredQuote(season: 4, episode: 4, text: "In our quest for the answers of life we tend to make order out of chaos, and chaos out of order.", highlight: "answers", author: "Jeffery Fry"),
+        WilfredQuote(season: 4, episode: 5, text: "There are many ways of going forward, but only one way of standing still.", highlight: "forward", author: "Franklin D. Roosevelt"),
+        WilfredQuote(season: 4, episode: 6, text: "Truth is outside of all patterns.", highlight: "patterns", author: "Bruce Lee"),
+        WilfredQuote(season: 4, episode: 7, text: "By imposing too great a responsibility, or rather, all responsibility, on yourself, you crush yourself.", highlight: "responsibility", author: "Franz Kafka"),
+        WilfredQuote(season: 4, episode: 8, text: "How few there are who have courage enough to own their faults, or resolution enough to mend them.", highlight: "courage", author: "Benjamin Franklin"),
+        WilfredQuote(season: 4, episode: 9, text: "Resistance is useless.", highlight: "Resistance", author: "Dr. Who"),
+        WilfredQuote(season: 4, episode: 10, text: "Happiness does not depend on outward things, but on the way we see them.", highlight: "Happiness", author: "Leo Tolstoy")
+    ]
 }
 
 struct CrewMember: Identifiable, Codable, Equatable {
@@ -695,7 +1110,7 @@ struct CrewMember: Identifiable, Codable, Equatable {
     }
 
     private static func defaultStartTime() -> Date {
-        Calendar.current.date(bySettingHour: 17, minute: 0, second: 0, of: Date()) ?? Date()
+        Calendar.current.date(bySettingHour: 9, minute: 30, second: 0, of: Date()) ?? Date()
     }
 
     private static func defaultEndTime() -> Date {
@@ -1008,6 +1423,12 @@ struct TipCalculator {
         let takeHome: Decimal
     }
 
+    struct RoundingAdjustment: Identifiable {
+        let id: UUID
+        let name: String
+        let amount: Decimal
+    }
+
     struct Result {
         let totalTips: Decimal
         let combinedFoodSales: Decimal
@@ -1020,9 +1441,48 @@ struct TipCalculator {
         let barbackPool: Decimal
         let barbackHourlyRate: Decimal
         let barbackPayouts: [PersonPayout]
+        let bartenderRoundingShortage: Decimal
+        let barbackRoundingShortage: Decimal
+        let bartenderUnresolvedRoundingShortage: Decimal
+        let barbackUnresolvedRoundingShortage: Decimal
+        let shortage: Decimal
+        let unresolvedShortage: Decimal
+        let bartenderShortageAdjustments: [RoundingAdjustment]
+        let barbackShortageAdjustments: [RoundingAdjustment]
         let bartenderRoundingOverage: Decimal
         let barbackRoundingOverage: Decimal
         let overage: Decimal
+    }
+
+    private struct PayoutDraft {
+        let id: UUID
+        let name: String
+        let hours: Decimal
+        let exactTakeHome: Decimal
+    }
+
+    private struct PayoutCandidate {
+        let id: UUID
+        let name: String
+        let hours: Decimal
+        var takeHome: Decimal
+        let cents: Decimal
+        let wasRoundedUp: Bool
+        let originalIndex: Int
+    }
+
+    private struct RoundedPayoutDetail {
+        let takeHome: Decimal
+        let cents: Decimal
+        let wasRoundedUp: Bool
+    }
+
+    private struct ReconciledPayouts {
+        let payouts: [PersonPayout]
+        let shortage: Decimal
+        let unresolvedShortage: Decimal
+        let overage: Decimal
+        let shortageAdjustments: [RoundingAdjustment]
     }
 
     static func calculate(
@@ -1042,30 +1502,31 @@ struct TipCalculator {
 
         let totalBartenderHours = bartenders.reduce(Decimal(0)) { $0 + $1.hours }
         let bartenderHourlyRate = totalBartenderHours > Decimal(0) ? bartenderPool / totalBartenderHours : Decimal(0)
-        let bartenderPayouts = bartenders.map { bartender in
-            PersonPayout(
-                id: bartender.id,
-                name: bartender.name,
-                hours: bartender.hours,
-                takeHome: roundPayoutWhole(bartender.hours * bartenderHourlyRate)
-            )
-        }
+        let bartenderReconciliation = reconciledPayouts(
+            pool: bartenderPool,
+            drafts: bartenders.map { bartender in
+                PayoutDraft(
+                    id: bartender.id,
+                    name: bartender.name,
+                    hours: bartender.hours,
+                    exactTakeHome: bartender.hours * bartenderHourlyRate
+                )
+            }
+        )
 
         let totalBarbackHours = barbacks.reduce(Decimal(0)) { $0 + $1.hours }
         let barbackHourlyRate = totalBarbackHours > Decimal(0) ? barbackPool / totalBarbackHours : Decimal(0)
-        let barbackPayouts = barbacks.map { barback in
-            PersonPayout(
-                id: barback.id,
-                name: barback.name,
-                hours: barback.hours,
-                takeHome: roundPayoutWhole(barback.hours * barbackHourlyRate)
-            )
-        }
-
-        let bartenderTakeHomeTotal = bartenderPayouts.reduce(Decimal(0)) { $0 + $1.takeHome }
-        let barbackTakeHomeTotal = barbackPayouts.reduce(Decimal(0)) { $0 + $1.takeHome }
-        let bartenderRoundingOverage = nonNegative(bartenderPool - bartenderTakeHomeTotal)
-        let barbackRoundingOverage = nonNegative(barbackPool - barbackTakeHomeTotal)
+        let barbackReconciliation = reconciledPayouts(
+            pool: barbackPool,
+            drafts: barbacks.map { barback in
+                PayoutDraft(
+                    id: barback.id,
+                    name: barback.name,
+                    hours: barback.hours,
+                    exactTakeHome: barback.hours * barbackHourlyRate
+                )
+            }
+        )
 
         return Result(
             totalTips: totalTips,
@@ -1075,13 +1536,86 @@ struct TipCalculator {
             truePooledTips: truePooledTips,
             bartenderPool: bartenderPool,
             bartenderHourlyRate: bartenderHourlyRate,
-            bartenderPayouts: bartenderPayouts,
+            bartenderPayouts: bartenderReconciliation.payouts,
             barbackPool: barbackPool,
             barbackHourlyRate: barbackHourlyRate,
-            barbackPayouts: barbackPayouts,
-            bartenderRoundingOverage: bartenderRoundingOverage,
-            barbackRoundingOverage: barbackRoundingOverage,
-            overage: bartenderRoundingOverage + barbackRoundingOverage
+            barbackPayouts: barbackReconciliation.payouts,
+            bartenderRoundingShortage: bartenderReconciliation.shortage,
+            barbackRoundingShortage: barbackReconciliation.shortage,
+            bartenderUnresolvedRoundingShortage: bartenderReconciliation.unresolvedShortage,
+            barbackUnresolvedRoundingShortage: barbackReconciliation.unresolvedShortage,
+            shortage: bartenderReconciliation.shortage + barbackReconciliation.shortage,
+            unresolvedShortage: bartenderReconciliation.unresolvedShortage + barbackReconciliation.unresolvedShortage,
+            bartenderShortageAdjustments: bartenderReconciliation.shortageAdjustments,
+            barbackShortageAdjustments: barbackReconciliation.shortageAdjustments,
+            bartenderRoundingOverage: bartenderReconciliation.overage,
+            barbackRoundingOverage: barbackReconciliation.overage,
+            overage: bartenderReconciliation.overage + barbackReconciliation.overage
+        )
+    }
+
+    private static func reconciledPayouts(pool: Decimal, drafts: [PayoutDraft]) -> ReconciledPayouts {
+        var candidates = drafts.enumerated().map { index, draft in
+            let roundedDetail = roundedPayoutDetail(draft.exactTakeHome)
+
+            return PayoutCandidate(
+                id: draft.id,
+                name: draft.name,
+                hours: draft.hours,
+                takeHome: roundedDetail.takeHome,
+                cents: roundedDetail.cents,
+                wasRoundedUp: roundedDetail.wasRoundedUp,
+                originalIndex: index
+            )
+        }
+
+        let initialTakeHomeTotal = candidates.reduce(Decimal(0)) { $0 + $1.takeHome }
+        let shortage = nonNegative(initialTakeHomeTotal - pool)
+        var remainingShortage = shortage
+        var shortageAdjustments: [RoundingAdjustment] = []
+        let roundedUpCandidateIndices = candidates.indices
+            .filter { candidates[$0].wasRoundedUp }
+            .sorted { leftIndex, rightIndex in
+                let left = candidates[leftIndex]
+                let right = candidates[rightIndex]
+
+                if left.cents == right.cents {
+                    return left.originalIndex < right.originalIndex
+                }
+
+                return left.cents < right.cents
+            }
+
+        for index in roundedUpCandidateIndices {
+            guard remainingShortage > Decimal(0) else { break }
+
+            candidates[index].takeHome -= Decimal(1)
+            remainingShortage -= Decimal(1)
+            shortageAdjustments.append(
+                RoundingAdjustment(
+                    id: candidates[index].id,
+                    name: candidates[index].name,
+                    amount: Decimal(1)
+                )
+            )
+        }
+
+        let finalTakeHomeTotal = candidates.reduce(Decimal(0)) { $0 + $1.takeHome }
+        let payouts = candidates.map { candidate in
+            PersonPayout(
+                id: candidate.id,
+                name: candidate.name,
+                hours: candidate.hours,
+                takeHome: candidate.takeHome
+            )
+        }
+
+        return ReconciledPayouts(
+            payouts: payouts,
+            shortage: shortage,
+            unresolvedShortage: nonNegative(finalTakeHomeTotal - pool),
+            overage: nonNegative(pool - finalTakeHomeTotal),
+            shortageAdjustments: shortageAdjustments
         )
     }
 
@@ -1099,13 +1633,22 @@ struct TipCalculator {
     }
 
     static func roundPayoutWhole(_ value: Decimal) -> Decimal {
+        roundedPayoutDetail(value).takeHome
+    }
+
+    private static func roundedPayoutDetail(_ value: Decimal) -> RoundedPayoutDetail {
         let valueRoundedToCents = round(value, scale: 2, mode: .plain)
         let wholeDollars = roundDownWhole(valueRoundedToCents)
         let cents = valueRoundedToCents - wholeDollars
-
-        return cents > Decimal(50) / Decimal(100)
+        let takeHome = cents > Decimal(50) / Decimal(100)
             ? wholeDollars + Decimal(1)
             : wholeDollars
+
+        return RoundedPayoutDetail(
+            takeHome: takeHome,
+            cents: cents,
+            wasRoundedUp: takeHome > wholeDollars
+        )
     }
 
     private static func round(_ value: Decimal, scale: Int16, mode: NSDecimalNumber.RoundingMode) -> Decimal {
@@ -1183,6 +1726,14 @@ enum AppFormat {
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = 2
         return formatter.string(from: NSDecimalNumber(decimal: value)) ?? "\(value)"
+    }
+
+    static func time(_ value: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: value)
     }
 }
 

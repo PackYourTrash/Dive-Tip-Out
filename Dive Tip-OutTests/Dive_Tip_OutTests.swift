@@ -38,8 +38,67 @@ struct Dive_Tip_OutTests {
         #expect(AppFormat.rate(result.barbackHourlyRate) == "$7.2500/hr")
         #expect(result.bartenderPayouts.map(\.takeHome) == [decimal("242"), decimal("275"), decimal("307")])
         #expect(result.barbackPayouts.map(\.takeHome) == [decimal("76"), decimal("69")])
+        #expect(result.bartenderRoundingShortage == decimal("0"))
+        #expect(result.barbackRoundingShortage == decimal("0"))
+        #expect(result.shortage == decimal("0"))
+        #expect(result.unresolvedShortage == decimal("0"))
+        #expect(result.bartenderShortageAdjustments.isEmpty)
+        #expect(result.barbackShortageAdjustments.isEmpty)
         #expect(result.bartenderRoundingOverage == decimal("0"))
         #expect(result.barbackRoundingOverage == decimal("0"))
+        #expect(result.overage == decimal("0"))
+    }
+
+    @Test func bartenderShortagePullsLowestRoundedUpPayoutDown() async throws {
+        let bartenders = [
+            TipCalculator.BartenderInput(id: UUID(), name: "Bartender A", foodSales: decimal("0"), hours: decimal("44.71")),
+            TipCalculator.BartenderInput(id: UUID(), name: "Bartender B", foodSales: decimal("0"), hours: decimal("44.76")),
+            TipCalculator.BartenderInput(id: UUID(), name: "Bartender C", foodSales: decimal("0"), hours: decimal("44.53"))
+        ]
+
+        let result = TipCalculator.calculate(
+            totalTips: decimal("134"),
+            bartenders: bartenders,
+            barbacks: [],
+            hasFoodRunner: false
+        )
+
+        #expect(result.bartenderPool == decimal("134"))
+        #expect(result.bartenderPayouts.map(\.takeHome) == [decimal("45"), decimal("45"), decimal("44")])
+        #expect(result.bartenderRoundingShortage == decimal("1"))
+        #expect(result.bartenderUnresolvedRoundingShortage == decimal("0"))
+        #expect(result.bartenderRoundingOverage == decimal("0"))
+        #expect(result.bartenderShortageAdjustments.map(\.name) == ["Bartender C"])
+        #expect(result.shortage == decimal("1"))
+        #expect(result.unresolvedShortage == decimal("0"))
+        #expect(result.overage == decimal("0"))
+    }
+
+    @Test func barbackShortagePullsLowestRoundedUpPayoutDown() async throws {
+        let bartenders = [
+            TipCalculator.BartenderInput(id: UUID(), name: "Bartender", foodSales: decimal("0"), hours: decimal("759"))
+        ]
+        let barbacks = [
+            TipCalculator.BarbackInput(id: UUID(), name: "Barback A", hours: decimal("44.71")),
+            TipCalculator.BarbackInput(id: UUID(), name: "Barback B", hours: decimal("44.76")),
+            TipCalculator.BarbackInput(id: UUID(), name: "Barback C", hours: decimal("44.53"))
+        ]
+
+        let result = TipCalculator.calculate(
+            totalTips: decimal("893"),
+            bartenders: bartenders,
+            barbacks: barbacks,
+            hasFoodRunner: false
+        )
+
+        #expect(result.barbackPool == decimal("134"))
+        #expect(result.barbackPayouts.map(\.takeHome) == [decimal("45"), decimal("45"), decimal("44")])
+        #expect(result.barbackRoundingShortage == decimal("1"))
+        #expect(result.barbackUnresolvedRoundingShortage == decimal("0"))
+        #expect(result.barbackRoundingOverage == decimal("0"))
+        #expect(result.barbackShortageAdjustments.map(\.name) == ["Barback C"])
+        #expect(result.shortage == decimal("1"))
+        #expect(result.unresolvedShortage == decimal("0"))
         #expect(result.overage == decimal("0"))
     }
 
