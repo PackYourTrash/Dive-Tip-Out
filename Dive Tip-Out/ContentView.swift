@@ -18,23 +18,11 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                HomeHeroCard(showingResetConfirmation: $showingResetConfirmation)
+                HomeHeroCard(
+                    showingResetConfirmation: $showingResetConfirmation,
+                    showWilfredQuote: showNewWilfredQuote
+                )
                     .ignoresSafeArea()
-
-                VStack {
-                    HStack {
-                        Spacer()
-
-                        Button("wilfred") {
-                            showNewWilfredQuote()
-                        }
-                        .buttonStyle(WilfredButtonStyle())
-                    }
-
-                    Spacer()
-                }
-                .padding(.top, 14)
-                .padding(.trailing, 18)
 
                 if let currentWilfredQuote {
                     WilfredQuotePopup(
@@ -71,6 +59,7 @@ struct ContentView: View {
 
 struct HomeHeroCard: View {
     @Binding var showingResetConfirmation: Bool
+    let showWilfredQuote: () -> Void
 
     var body: some View {
         GeometryReader { proxy in
@@ -176,8 +165,14 @@ struct HomeHeroCard: View {
                     .padding(.horizontal, max(38, width * 0.14))
                     .padding(.bottom, 28)
 
-                    Button("Reset") {
-                        showingResetConfirmation = true
+                    VStack(alignment: .leading, spacing: 14) {
+                        Button("Reset") {
+                            showingResetConfirmation = true
+                        }
+
+                        Button("wilfred") {
+                            showWilfredQuote()
+                        }
                     }
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.86))
@@ -1029,27 +1024,6 @@ struct AnimatedDotGrid: View {
 
 enum AppColor {
     static let diveBlue = Color(red: 0.20, green: 0.72, blue: 0.86)
-}
-
-struct WilfredButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.caption.weight(.bold))
-            .foregroundStyle(AppColor.diveBlue)
-            .padding(.horizontal, 13)
-            .frame(height: 34)
-            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-            .background(
-                Capsule(style: .continuous)
-                    .fill(.black.opacity(configuration.isPressed ? 0.78 : 0.62))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(.white.opacity(0.24), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-    }
 }
 
 struct HomePrimaryButtonStyle: ButtonStyle {
